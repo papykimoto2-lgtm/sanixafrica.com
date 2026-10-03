@@ -63,7 +63,7 @@ export default function Carte() {
         m.addLayer({ id: 'parcelles', type: 'fill', source: 'parcelles', paint: {
           'fill-color': ['case', ['>=', ['get', 'nb_anomalies'], 2], '#d92d20', ['>=', ['get', 'nb_anomalies'], 1], '#f79009', '#12b76a'],
           'fill-opacity': 0.35 } });
-        m.addLayer({ id: 'parcelles-contour', type: 'line', source: 'parcelles', paint: { 'line-color': '#0b5d3b', 'line-width': 1 } });
+        m.addLayer({ id: 'parcelles-contour', type: 'line', source: 'parcelles', paint: { 'line-color': '#1f5fa6', 'line-width': 1 } });
         m.addLayer({ id: 'batiments', type: 'fill', source: 'batiments', paint: { 'fill-color': '#344054', 'fill-opacity': 0.6 } });
 
         m.on('click', 'parcelles', (e) => {
