@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Badge, demanderMotif, Erreur, useApi } from '@/components/ui';
-import { api, fmt, libelle } from '@/lib/api';
+import { Badge, demanderMotif, Erreur, useRpc } from '@/components/ui';
+import { rpc, fmt, libelle } from '@/lib/api';
 
 export default function FicheProprietaire() {
   const { id } = useParams<{ id: string }>();
-  const { data: p, erreur, recharger } = useApi(`/proprietaires/${id}`);
+  const { data: p, erreur, recharger } = useRpc('proprietaire_detail', { p_id: id });
   const [doublon, setDoublon] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export default function FicheProprietaire() {
     if (!motif) return;
     setErr(null);
     try {
-      const r = await api(`/proprietaires/${id}/fusion`, { corps: { doublon_id: doublon.trim(), motif } });
+      const r = await rpc('proprietaire_fusionner', { p_id: id, p_doublon: doublon.trim(), p_motif: motif });
       setMsg(`Fusion effectuée : ${r.droits_rattaches} droit(s) rattaché(s).`);
       recharger();
     } catch (e: any) {

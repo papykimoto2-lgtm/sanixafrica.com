@@ -6,7 +6,7 @@
 -- Principe : un administrateur ne doit pas pouvoir modifier silencieusement une donnée
 -- historique → toute mise à jour ou suppression exige un motif.
 
-SET search_path = snifi, public;
+SET search_path = snifi, public, extensions;
 
 CREATE TABLE journal_audit (
   id           bigserial PRIMARY KEY,
@@ -63,8 +63,8 @@ BEGIN
     RAISE EXCEPTION 'SNIFI : motif obligatoire pour % sur %', TG_OP, TG_TABLE_NAME USING ERRCODE = 'SN001';
   END IF;
 
-  IF TG_OP <> 'INSERT' THEN v_avant := to_jsonb(OLD) - 'mot_de_passe' - 'modifie_le'; END IF;
-  IF TG_OP <> 'DELETE' THEN v_apres := to_jsonb(NEW) - 'mot_de_passe' - 'modifie_le'; END IF;
+  IF TG_OP <> 'INSERT' THEN v_avant := to_jsonb(OLD) - 'modifie_le'; END IF;
+  IF TG_OP <> 'DELETE' THEN v_apres := to_jsonb(NEW) - 'modifie_le'; END IF;
 
   IF TG_OP = 'UPDATE' THEN
     SELECT array_agg(k ORDER BY k) INTO v_champs
@@ -84,7 +84,8 @@ BEGIN
   j.utilisateur := v_user;
   j.action      := TG_OP;
   j.table_nom   := TG_TABLE_NAME;
-  j.ligne_id    := coalesce(v_apres ->> 'id', v_avant ->> 'id', (to_jsonb(coalesce(NEW, OLD)) ->> 'id'));
+  j.ligne_id    := coalesce(v_apres ->> 'id', v_avant ->> 'id', to_jsonb(coalesce(NEW, OLD)) ->> 'id',
+                            to_jsonb(coalesce(NEW, OLD)) ->> 'user_id');
   j.parcelle_ref := CASE WHEN TG_TABLE_NAME = 'parcelles' THEN j.ligne_id
                           ELSE to_jsonb(coalesce(NEW, OLD)) ->> 'parcelle_id' END;
   j.champs      := v_champs;
@@ -123,7 +124,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'utilisateurs', 'proprietaires', 'parcelles', 'droits', 'batiments', 'unites', 'permis',
+    'profils', 'proprietaires', 'parcelles', 'droits', 'batiments', 'unites', 'permis',
     'transactions', 'regles_fiscales', 'exonerations', 'declarations', 'impositions', 'paiements',
     'regles_anomalies', 'anomalies', 'zones_fiscales']
   LOOP

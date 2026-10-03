@@ -3,7 +3,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef, useState } from 'react';
 import type { Map as CarteMapLibre } from 'maplibre-gl';
-import { api } from '@/lib/api';
+import { rpc } from '@/lib/api';
 import { Erreur } from '@/components/ui';
 
 const COUCHES = [
@@ -25,8 +25,8 @@ export default function Carte() {
     (async () => {
       const maplibregl = (await import('maplibre-gl')).default;
       const [parcelles, batiments, zones, territoires] = await Promise.all([
-        api('/cartographie/parcelles'), api('/cartographie/batiments'),
-        api('/cartographie/zones-fiscales'), api('/cartographie/territoires'),
+        rpc('carto_parcelles'), rpc('carto_batiments'),
+        rpc('carto_zones_fiscales'), rpc('carto_territoires'),
       ]).catch((e) => { setErreur(e.message); return []; });
       if (detruite || !conteneur.current || !parcelles) return;
       donnees.current = parcelles;

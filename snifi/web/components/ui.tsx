@@ -1,17 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, libelle } from '@/lib/api';
+import { libelle, rpc } from '@/lib/api';
 
-/** Charge une ressource de l'API et expose { data, erreur, recharger }. */
-export function useApi<T = any>(chemin: string | null) {
+/** Appelle une fonction de l'API (null = ne rien charger) et expose { data, erreur, recharger }. */
+export function useRpc<T = any>(fonction: string | null, args: Record<string, unknown> = {}) {
   const [data, setData] = useState<T | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const cle = JSON.stringify(args);
   const recharger = useCallback(() => {
-    if (!chemin) return;
+    if (!fonction) return;
     setErreur(null);
-    api<T>(chemin).then(setData).catch((e) => setErreur(e.message));
-  }, [chemin]);
+    rpc<T>(fonction, JSON.parse(cle)).then(setData).catch((e) => setErreur(e.message));
+  }, [fonction, cle]);
   useEffect(recharger, [recharger]);
   return { data, erreur, recharger };
 }

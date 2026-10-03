@@ -1,6 +1,6 @@
 -- SNIFI — Migration 003 : référentiels de base
 
-SET search_path = snifi, public;
+SET search_path = snifi, public, extensions;
 
 INSERT INTO sources_donnees (code, libelle, officielle, fiabilite) VALUES
   ('CADASTRE',    'Cadastre / service foncier',      true,  5),

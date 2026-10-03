@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { demanderMotif, Erreur, useApi } from '@/components/ui';
-import { api, fmt } from '@/lib/api';
+import { demanderMotif, Erreur, useRpc } from '@/components/ui';
+import { rpc, fmt } from '@/lib/api';
 
 export default function Fiscalite() {
   const annee = new Date().getFullYear();
   const [exercice, setExercice] = useState(annee);
   const [echeance, setEcheance] = useState(`${annee}-06-30`);
-  const { data: synthese, erreur, recharger } = useApi(`/fiscalite/synthese?exercice=${exercice}`);
-  const { data: regles } = useApi('/fiscalite/regles');
+  const { data: synthese, erreur, recharger } = useRpc('fiscalite_synthese', { p_exercice: exercice });
+  const { data: regles } = useRpc('fiscalite_regles');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -18,13 +18,13 @@ export default function Fiscalite() {
     try { setMsg(await fn()); recharger(); } catch (e: any) { setErr(e.message); }
   }
   const calculer = () => executer(async () => {
-    const r = await api('/fiscalite/calcul', { corps: { exercice } });
+    const r = await rpc('fiscalite_calculer', { p_exercice: exercice });
     return `${r.impositions_calculees} imposition(s) théorique(s) calculée(s) pour ${exercice}.`;
   });
   const liquider = () => {
     const motif = demanderMotif(`liquidation de l’exercice ${exercice}`);
     if (motif) executer(async () => {
-      const r = await api('/fiscalite/liquidation', { corps: { exercice, date_echeance: echeance, motif } });
+      const r = await rpc('fiscalite_liquider', { p_exercice: exercice, p_echeance: echeance, p_motif: motif });
       return `${r.impositions_liquidees} imposition(s) liquidée(s) — ${fmt.montant(r.montant_total)}.`;
     });
   };

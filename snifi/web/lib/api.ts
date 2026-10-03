@@ -1,56 +1,40 @@
 'use client';
 
+import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://localhost:54321',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'cle-manquante',
+);
+
 export interface Utilisateur {
-  id: string;
+  user_id: string;
   login: string;
   nom: string;
   role: string;
   territoire_code: string | null;
 }
 
-const CLE = 'snifi.session';
+/** Messages lisibles pour les codes d'erreur PostgreSQL non métier. */
+const ERREURS_PG: Record<string, string> = {
+  '23505': 'Doublon : un enregistrement avec cet identifiant existe déjà',
+  '23503': 'Référence inexistante',
+  '23514': 'Valeur non conforme aux contraintes du référentiel',
+  '22P02': 'Format de donnée invalide',
+  '22007': 'Date invalide',
+  '42501': 'Accès refusé',
+};
 
-export function session(): { jeton: string; utilisateur: Utilisateur } | null {
-  try {
-    const s = localStorage.getItem(CLE);
-    return s ? JSON.parse(s) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function ouvrirSession(jeton: string, utilisateur: Utilisateur) {
-  localStorage.setItem(CLE, JSON.stringify({ jeton, utilisateur }));
-}
-
-export function fermerSession() {
-  localStorage.removeItem(CLE);
-}
-
-export class ErreurApi extends Error {
-  constructor(public statut: number, message: string, public erreurs?: { champ: string; message: string }[]) {
-    super(message);
-  }
-}
-
-export async function api<T = any>(chemin: string, options: { methode?: string; corps?: unknown } = {}): Promise<T> {
-  const s = session();
-  const res = await fetch(`/api/v1${chemin}`, {
-    method: options.methode ?? (options.corps ? 'POST' : 'GET'),
-    headers: {
-      'Content-Type': 'application/json',
-      ...(s ? { Authorization: `Bearer ${s.jeton}` } : {}),
-    },
-    body: options.corps ? JSON.stringify(options.corps) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && s) {
-    fermerSession();
-    window.location.href = '/connexion';
-  }
-  if (!res.ok) {
-    const detail = data.erreurs?.map((e: any) => `${e.champ} : ${e.message}`).join(' · ');
-    throw new ErreurApi(res.status, detail ? `${data.message} — ${detail}` : data.message ?? `Erreur ${res.status}`, data.erreurs);
+/** Appelle une fonction de l'API SNIFI (RPC Supabase) avec la session de l'utilisateur. */
+export async function rpc<T = any>(fonction: string, args: Record<string, unknown> = {}): Promise<T> {
+  const propres = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined && v !== ''));
+  const { data, error } = await supabase.rpc(fonction, propres);
+  if (error) {
+    if (error.code === 'SN401' || error.code === 'PGRST301') {
+      await supabase.auth.signOut();
+      window.location.href = '/connexion';
+    }
+    throw new Error(error.code?.startsWith('SN') ? error.message : ERREURS_PG[error.code] ?? error.message);
   }
   return data as T;
 }

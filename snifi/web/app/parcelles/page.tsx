@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { Erreur, Pagination, useApi } from '@/components/ui';
+import { Erreur, Pagination, useRpc } from '@/components/ui';
 import { fmt } from '@/lib/api';
 
 function Liste() {
@@ -13,9 +13,9 @@ function Liste() {
   const [commune, setCommune] = useState(params.get('commune') ?? '');
   const [page, setPage] = useState(1);
   const [filtre, setFiltre] = useState({ q: '', proprietaire: '' });
-  const qs = new URLSearchParams({ page: String(page), taille: '25', ...(filtre.q && { q: filtre.q }),
-    ...(filtre.proprietaire && { proprietaire: filtre.proprietaire }), ...(commune && { commune }) });
-  const { data, erreur } = useApi(`/parcelles?${qs}`);
+  const { data, erreur } = useRpc('parcelles_lister', {
+    p_page: page, p_taille: 25, p_q: filtre.q, p_proprietaire: filtre.proprietaire, p_commune: commune,
+  });
 
   return (
     <>

@@ -1,0 +1,12 @@
+{
+  "name": "snifi-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests de bout en bout de l'API SQL SNIFI sur PostgreSQL + PostGIS (base remise à zéro)",
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
+}

@@ -49,75 +49,77 @@ montant = base × (1 − abattement) × taux × coefficient_zone × (1 − exon�
 Chaque imposition garde le détail de ces facteurs dans `detail_calcul`. Le **montant théorique**
 (simulation) reste séparé du **montant liquidé** (exigible), et une imposition liquidée n'est jamais recalculée.
 
-## Architecture
+## Architecture : GitHub + Vercel + Supabase
+
+```
+Navigateur ──► Vercel (Next.js, snifi/web) ──supabase-js──► Supabase
+                                                             ├─ Auth (comptes, mots de passe, MFA)
+                                                             ├─ API RPC : fonctions public.* (contrôle rôle + périmètre)
+                                                             └─ PostgreSQL + PostGIS : schéma snifi (non exposé)
+```
 
 ```
 snifi/
-├── db/
-│   ├── migrations/   001 schéma · 002 audit · 003 référentiels · 004 fonctions métier
-│   └── seed/demo.sql jeu de démonstration FICTIF (Abidjan : Cocody, Yopougon)
-├── api/              NestJS + pg (PostgreSQL/PostGIS) — /api/v1
-└── web/              Next.js (React, TypeScript) + MapLibre
+├── supabase/
+│   ├── migrations/        schéma · audit · référentiels · fonctions métier · API RPC
+│   ├── seed.sql           jeu de démonstration FICTIF (Abidjan : Cocody, Yopougon)
+│   └── demo_auth_users.sql comptes de démonstration Supabase Auth (à exécuter avant seed.sql)
+├── web/                   Next.js (React, TypeScript) + MapLibre, déployé sur Vercel
+└── tests/                 tests de bout en bout de l'API SQL (PostgreSQL + PostGIS local)
 ```
 
-## Démarrage
+Le navigateur n'accède jamais aux tables. Chaque écran appelle une fonction de l'API
+(`supabase.rpc('parcelles_lister', …)`) avec la session de l'utilisateur. La fonction :
+- identifie le compte (`auth.uid()`) ;
+- vérifie son rôle et son périmètre territorial ;
+- transmet au journal d'audit l'auteur, le motif et la source de la modification.
 
-### Avec Docker
+## Mise en place
 
+### 1. Supabase
+1. Créez un projet Supabase.
+2. Appliquez dans l'ordre les fichiers de `supabase/migrations/`, avec la CLI (`supabase db push`) ou dans l'éditeur SQL.
+3. Pour la démonstration, exécutez `supabase/demo_auth_users.sql` puis `supabase/seed.sql`.
+4. En production, créez les comptes depuis *Authentication* et attribuez à chacun un profil dans `snifi.profils` (rôle et territoire). Activez aussi la MFA.
+
+### 2. Vercel
+1. Importez le dépôt GitHub dans Vercel et réglez **Root Directory** sur `snifi/web`.
+2. Définissez les variables `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` (voir `web/.env.example`).
+3. Chaque push déclenche un déploiement, avec une prévisualisation pour chaque pull request.
+
+### 3. En local
 ```bash
-cd snifi
-docker compose up --build
-# http://localhost:3000 — comptes : admin, agent, controleur, foncier, auditeur / snifi2026
+cd snifi/web && cp .env.example .env.local   # renseigner l'URL et la clé du projet
+npm install && npm run dev                     # http://localhost:3000
 ```
-
-### En local (PostgreSQL 16 + PostGIS 3)
-
-```bash
-# base : createdb snifi (utilisateur snifi / snifi) — ou définir DATABASE_URL
-cd snifi/api && npm install
-npm run db:seed          # migrations + jeu de démonstration
-npm run dev              # API sur http://localhost:3001/api/v1
-
-cd ../web && npm install
-npm run dev              # interface sur http://localhost:3000 (proxy /api/v1 → API)
-```
-
-Pour alimenter la démonstration, lancez dans l'interface **Fiscalité → Calculer** puis **Liquider**, et **Anomalies → Exécuter le moteur**.
 
 ### Tests
-
-Ce sont des tests de bout en bout sur une vraie base PostGIS. La base `snifi_test` est **remise à zéro** à chaque exécution.
-
+Il faut PostgreSQL 16+ avec PostGIS. La base `snifi_test` est **supprimée puis recréée** à chaque exécution, et Supabase Auth y est simulé.
 ```bash
-createdb snifi_test
-cd snifi/api && npm test
+cd snifi/tests && npm install && PG_URL=postgres://user:pass@localhost:5432 npm test
 ```
 
-Ils couvrent : authentification et RBAC, périmètre territorial, identifiants SNIFI, motif obligatoire,
-historique avant/après, mutations, cartographie, calcul, liquidation et paiement, détection et idempotence
-des 6 règles, cycle de traitement des anomalies, intégrité et immuabilité du journal.
+## API (fonctions RPC Supabase)
 
-## API (extrait)
+| Domaine | Fonctions | Rôles en écriture |
+|---------|-----------|-------------------|
+| Session | `moi` | — |
+| Propriétaires | `proprietaires_lister`, `proprietaire_detail`, `proprietaire_creer`, `proprietaire_modifier`, `proprietaire_fusionner` | admin, régional, agent fiscal, foncier |
+| Parcelles | `parcelles_lister`, `parcelle_detail`, `parcelle_historique`, `parcelle_creer`, `parcelle_modifier`, `droit_ajouter` | admin, foncier |
+| Bâtiments | `batiment_detail`, `batiment_creer`, `batiment_modifier`, `unite_ajouter`, `permis_creer` | admin, foncier, urbanisme, agent fiscal |
+| Cartographie | `carto_parcelles(p_bbox)`, `carto_batiments`, `carto_zones_fiscales`, `carto_territoires` | lecture |
+| Fiscalité | `fiscalite_regles`, `regle_fiscale_creer`, `fiscalite_calculer`, `fiscalite_liquider`, `paiement_enregistrer`, `exoneration_creer`, `dossier_fiscal`, `fiscalite_synthese` | admin, agent fiscal |
+| Transactions | `transactions_lister`, `transaction_creer`, `transaction_valider`, `transaction_appliquer` | admin, foncier, notaire |
+| Anomalies | `anomalies_regles`, `anomalie_regle_modifier`, `anomalies_executer`, `anomalies_lister`, `anomalie_traiter` | admin, contrôleur, agent fiscal |
+| Audit | `audit_journal`, `audit_verifier` | admin, auditeur (lecture seule) |
+| Pilotage | `tableau_de_bord`, `espace_proprietaire_biens` | lecture |
 
-| Méthode | Route | Rôles |
-|---------|-------|-------|
-| POST | `/auth/connexion` | public |
-| GET/POST/PATCH | `/proprietaires`, `/proprietaires/:id`, `POST /proprietaires/:id/fusion` | lecture institutionnelle / foncier, fiscal |
-| GET/POST/PATCH | `/parcelles`, `/parcelles/:id`, `/parcelles/:id/historique`, `POST /parcelles/:id/droits` | lecture / service foncier |
-| POST/PATCH | `/batiments`, `/batiments/:id/unites`, `/permis` | foncier, urbanisme, fiscal |
-| GET | `/cartographie/{parcelles,batiments,zones-fiscales,territoires}?bbox=o,s,e,n` | lecture |
-| GET/POST | `/fiscalite/{regles,calcul,liquidation,paiements,exonerations,synthese}`, `/fiscalite/dossier/:parcelleId` | fiscal |
-| GET/POST | `/transactions`, `/transactions/:id/{valider,appliquer}` | foncier, notaire |
-| GET/POST/PATCH | `/anomalies`, `/anomalies/executer`, `/anomalies/regles/:code` | contrôleur, fiscal |
-| GET | `/audit`, `/audit/verification` | auditeur, admin |
-| GET | `/tableau-de-bord`, `/espace-proprietaire/biens` | lecture / propriétaire |
-
-Toute requête de modification (PATCH, action) doit porter un `motif` dans le corps, ou dans l'en-tête `X-Snifi-Motif` encodé en URI.
+Les fonctions de modification prennent un paramètre `p_motif`, obligatoire (5 caractères minimum).
 
 ## Limites connues du prototype et suite (V1.1 → V3)
 
-- **IAM / MFA** : authentification locale JWT pour le prototype. En production, elle est déléguée à Keycloak ou à l'IAM institutionnel (OIDC + MFA). La garde RBAC reste la même.
-- **Rôles de base de données** : en production, l'API doit se connecter avec un rôle sans droits DDL, pour qu'elle ne puisse pas désactiver les triggers d'audit. Il faut aussi ancrer régulièrement la dernière empreinte du journal hors de la base (horodatage qualifié).
+- **MFA** : Supabase Auth gère la double authentification (TOTP). L'écran d'enrôlement et l'exigence du niveau `aal2` pour les profils sensibles restent à ajouter.
+- **Rôles de base de données** : en production, limiter l'accès au rôle propriétaire de la base (postgres), qui pourrait désactiver les triggers d'audit. Il faut aussi ancrer régulièrement la dernière empreinte du journal hors de la base (horodatage qualifié).
 - Pas encore livrés : GED (Module 15), Data Hub d'import (V1.2), contrôles (V2.1), moteur de risque (V2). Les `poids` des règles d'anomalies sont déjà stockés pour l'indice de priorité explicable.
 - Le fond de carte OpenStreetMap public sert uniquement à la démonstration. Prévoir un serveur de tuiles ou un orthophotoplan institutionnel.
 - Les taux, zones, noms et montants du jeu de démonstration sont **fictifs**.

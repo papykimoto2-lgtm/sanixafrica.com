@@ -3,20 +3,26 @@
 --
 -- PROPRIÉTAIRE → DROIT/TITRE → PARCELLE → BÂTIMENT → UNITÉ → (TRANSACTION, FISCALITÉ)
 
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Supabase : les extensions vivent dans le schéma « extensions ».
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
+-- Le schéma snifi n'est PAS exposé par l'API Supabase : les tables ne sont accessibles
+-- qu'au travers des fonctions de l'API (migration 005), qui contrôlent rôle et périmètre.
 CREATE SCHEMA IF NOT EXISTS snifi;
-SET search_path = snifi, public;
+REVOKE ALL ON SCHEMA snifi FROM PUBLIC;
+SET search_path = snifi, public, extensions;
 
 -- ---------------------------------------------------------------------------
 -- 01. Utilisateurs / sécurité (RBAC, moindre privilège)
 -- ---------------------------------------------------------------------------
-CREATE TABLE utilisateurs (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+-- Comptes : l'authentification (mot de passe, MFA) est assurée par Supabase Auth (auth.users).
+-- Le profil SNIFI porte le rôle et le périmètre de chaque compte.
+CREATE TABLE profils (
+  user_id         uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   login           text NOT NULL UNIQUE,
   nom             text NOT NULL,
-  mot_de_passe    text NOT NULL,             -- hash bcrypt, jamais en clair
   role            text NOT NULL CHECK (role IN (
                     'admin_national', 'admin_regional', 'agent_fiscal', 'controleur',
                     'collectivite', 'service_foncier', 'urbanisme', 'notaire',
@@ -24,8 +30,7 @@ CREATE TABLE utilisateurs (
   territoire_code text,                       -- périmètre territorial (admin régional, collectivité)
   proprietaire_id uuid,                       -- rôle « propriétaire » : accès à ses seules données
   actif           boolean NOT NULL DEFAULT true,
-  cree_le         timestamptz NOT NULL DEFAULT now(),
-  derniere_connexion timestamptz
+  cree_le         timestamptz NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -77,8 +82,8 @@ CREATE TABLE proprietaires (
 );
 CREATE INDEX proprietaires_nom_idx ON proprietaires USING gin (to_tsvector('simple', nom));
 
-ALTER TABLE utilisateurs
-  ADD CONSTRAINT utilisateurs_proprietaire_fk FOREIGN KEY (proprietaire_id) REFERENCES proprietaires(id);
+ALTER TABLE profils
+  ADD CONSTRAINT profils_proprietaire_fk FOREIGN KEY (proprietaire_id) REFERENCES proprietaires(id);
 
 -- ---------------------------------------------------------------------------
 -- 03. Référentiel parcellaire (Module 02)

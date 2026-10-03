@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { Badge, demanderMotif, Erreur, Pagination, useApi } from '@/components/ui';
-import { api, fmt, libelle } from '@/lib/api';
+import { Badge, demanderMotif, Erreur, Pagination, useRpc } from '@/components/ui';
+import { rpc, fmt, libelle } from '@/lib/api';
 
 const SUIVANTS: Record<string, string[]> = {
   ouverte: ['en_examen', 'rejetee'],
@@ -17,16 +17,15 @@ function Liste() {
   const [regle, setRegle] = useState(params.get('regle') ?? '');
   const [statut, setStatut] = useState('ouverte');
   const [page, setPage] = useState(1);
-  const qs = new URLSearchParams({ page: String(page), taille: '25', ...(regle && { regle }), ...(statut && { statut }) });
-  const { data, erreur, recharger } = useApi(`/anomalies?${qs}`);
-  const { data: regles, recharger: rechargerRegles } = useApi('/anomalies/regles');
+  const { data, erreur, recharger } = useRpc('anomalies_lister', { p_page: page, p_taille: 25, p_regle: regle, p_statut: statut });
+  const { data: regles, recharger: rechargerRegles } = useRpc('anomalies_regles');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function executer() {
     setErr(null);
     try {
-      const r = await api('/anomalies/executer', { corps: {} });
+      const r = await rpc('anomalies_executer');
       setMsg(r.resultats.map((x: any) => `${x.regle} : ${x.detectees} détectée(s), ${x.nouvelles} nouvelle(s), ${x.corrigees} corrigée(s)`).join(' · '));
       recharger(); rechargerRegles();
     } catch (e: any) { setErr(e.message); }
@@ -36,7 +35,7 @@ function Liste() {
     const motif = demanderMotif(`passage en « ${libelle(nouveau)} »`);
     if (!motif) return;
     setErr(null);
-    try { await api(`/anomalies/${id}`, { methode: 'PATCH', corps: { statut: nouveau, motif } }); recharger(); }
+    try { await rpc('anomalie_traiter', { p_id: id, p_statut: nouveau, p_motif: motif }); recharger(); }
     catch (e: any) { setErr(e.message); }
   }
 

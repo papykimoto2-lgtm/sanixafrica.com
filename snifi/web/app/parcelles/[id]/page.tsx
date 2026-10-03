@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Badge, Erreur, useApi } from '@/components/ui';
+import { Badge, Erreur, useRpc } from '@/components/ui';
 import { fmt, libelle } from '@/lib/api';
 
 const ONGLETS = ['Synthèse', 'Bâtiments', 'Fiscalité', 'Transactions', 'Anomalies', 'Historique'] as const;
@@ -11,9 +11,9 @@ const ONGLETS = ['Synthèse', 'Bâtiments', 'Fiscalité', 'Transactions', 'Anoma
 export default function FicheParcelle() {
   const { id } = useParams<{ id: string }>();
   const [onglet, setOnglet] = useState<(typeof ONGLETS)[number]>('Synthèse');
-  const { data: p, erreur } = useApi(`/parcelles/${id}`);
-  const { data: fisc } = useApi(onglet === 'Fiscalité' ? `/fiscalite/dossier/${id}` : null);
-  const { data: histo } = useApi(onglet === 'Historique' ? `/parcelles/${id}/historique` : null);
+  const { data: p, erreur } = useRpc('parcelle_detail', { p_id: id });
+  const { data: fisc } = useRpc(onglet === 'Fiscalité' ? 'dossier_fiscal' : null, { p_parcelle: id });
+  const { data: histo } = useRpc(onglet === 'Historique' ? 'parcelle_historique' : null, { p_id: id });
 
   if (erreur) return <Erreur message={erreur} />;
   if (!p) return null;

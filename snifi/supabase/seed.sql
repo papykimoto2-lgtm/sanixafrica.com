@@ -4,7 +4,7 @@
 -- uniquement à illustrer le fonctionnement du prototype. Les taux fiscaux réels doivent
 -- être paramétrés par l'administration compétente dans snifi.regles_fiscales.
 
-SET search_path = snifi, public;
+SET search_path = snifi, public, extensions;
 SELECT set_config('snifi.utilisateur', 'SEED', false),
        set_config('snifi.source', 'SEED-DEMO', false),
        set_config('snifi.motif', 'Initialisation du jeu de démonstration', false);
@@ -30,13 +30,20 @@ INSERT INTO regles_fiscales (code, libelle, impot, assiette, usage, taux, abatte
   ('IFB-MIX', 'Foncier bâti — mixte (démo)',       'foncier_bati',     'valeur_locative', 'mixte',      0.042000, 0.0, true,  '2020-01-01', 'Paramètre de démonstration'),
   ('IFNB',    'Foncier non bâti (démo, par m²)',   'foncier_non_bati', 'surface_terrain', NULL,         50.000000, 0.0, true, '2020-01-01', 'Paramètre de démonstration');
 
--- Utilisateurs (mot de passe de démo : « snifi2026 ») ----------------------------
-INSERT INTO utilisateurs (login, nom, mot_de_passe, role, territoire_code) VALUES
-  ('admin',      'Administrateur national (démo)', crypt('snifi2026', gen_salt('bf', 10)), 'admin_national', NULL),
-  ('agent',      'Agent fiscal Cocody (démo)',     crypt('snifi2026', gen_salt('bf', 10)), 'agent_fiscal',   'CI-ABJ-COC'),
-  ('controleur', 'Contrôleur (démo)',              crypt('snifi2026', gen_salt('bf', 10)), 'controleur',     NULL),
-  ('foncier',    'Service foncier (démo)',         crypt('snifi2026', gen_salt('bf', 10)), 'service_foncier', NULL),
-  ('auditeur',   'Auditeur (démo)',                crypt('snifi2026', gen_salt('bf', 10)), 'auditeur',       NULL);
+-- Profils SNIFI des comptes de démonstration.
+-- Les comptes eux-mêmes sont créés dans Supabase Auth (voir demo_auth_users.sql) :
+-- seuls ceux qui existent déjà reçoivent un profil.
+INSERT INTO profils (user_id, login, nom, role, territoire_code)
+SELECT u.id, v.login, v.nom, v.role, v.territoire
+  FROM (VALUES
+    ('admin@snifi.demo',      'admin',      'Administrateur national (démo)', 'admin_national',  NULL),
+    ('agent@snifi.demo',      'agent',      'Agent fiscal Cocody (démo)',     'agent_fiscal',    'CI-ABJ-COC'),
+    ('controleur@snifi.demo', 'controleur', 'Contrôleur (démo)',              'controleur',      NULL),
+    ('foncier@snifi.demo',    'foncier',    'Service foncier (démo)',         'service_foncier', NULL),
+    ('auditeur@snifi.demo',   'auditeur',   'Auditeur (démo)',                'auditeur',        NULL)
+  ) AS v (email, login, nom, role, territoire)
+  JOIN auth.users u ON lower(u.email) = v.email
+ON CONFLICT (user_id) DO NOTHING;
 
 -- Propriétaires, parcelles, bâtiments, unités, droits, permis, déclarations ---------
 DO $$

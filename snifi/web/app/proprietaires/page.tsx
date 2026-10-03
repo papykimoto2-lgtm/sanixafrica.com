@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import { Erreur, Pagination, useApi } from '@/components/ui';
-import { api, libelle } from '@/lib/api';
+import { Erreur, Pagination, useRpc } from '@/components/ui';
+import { rpc, libelle } from '@/lib/api';
 
 const TYPES = ['personne_physique', 'personne_morale', 'copropriete', 'succession', 'etat', 'collectivite', 'autre'];
 
@@ -14,14 +14,14 @@ export default function Proprietaires() {
   const [form, setForm] = useState({ type: 'personne_physique', nom: '', identifiant_fiscal: '', telephone: '', adresse: '' });
   const [message, setMessage] = useState<string | null>(null);
   const [erreurForm, setErreurForm] = useState<string | null>(null);
-  const { data, erreur, recharger } = useApi(`/proprietaires?page=${page}&taille=25${filtre ? `&q=${encodeURIComponent(filtre)}` : ''}`);
+  const { data, erreur, recharger } = useRpc('proprietaires_lister', { p_page: page, p_taille: 25, p_q: filtre });
 
   async function creer(e: FormEvent) {
     e.preventDefault();
     setErreurForm(null);
     try {
       const corps = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''));
-      const p = await api('/proprietaires', { corps });
+      const p = await rpc('proprietaire_creer', { p_data: corps });
       setMessage(`Propriétaire créé : ${p.snifi_id}`);
       setForm({ ...form, nom: '', identifiant_fiscal: '', telephone: '', adresse: '' });
       recharger();

@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Badge, Erreur, useApi } from '@/components/ui';
+import { Badge, Erreur, useRpc } from '@/components/ui';
 import { fmt } from '@/lib/api';
 
 export default function TableauDeBord() {
   const [exercice, setExercice] = useState(new Date().getFullYear());
-  const { data, erreur } = useApi(`/tableau-de-bord?exercice=${exercice}`);
+  const { data, erreur } = useRpc('tableau_de_bord', { p_exercice: exercice });
   const i = data?.indicateurs;
   const recouvrement = i && Number(i.liquide) > 0 ? (100 * Number(i.recouvre)) / Number(i.liquide) : null;
 

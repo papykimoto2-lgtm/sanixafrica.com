@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Erreur, useApi } from '@/components/ui';
+import { Erreur, useRpc } from '@/components/ui';
 import { fmt } from '@/lib/api';
 
 export default function Audit() {
   const [table, setTable] = useState('');
   const [page, setPage] = useState(1);
-  const { data, erreur } = useApi(`/audit?page=${page}&taille=50${table ? `&table=${table}` : ''}`);
-  const { data: verif, recharger } = useApi('/audit/verification');
+  const { data, erreur } = useRpc('audit_journal', { p_page: page, p_taille: 50, p_table: table });
+  const { data: verif, recharger } = useRpc('audit_verifier');
 
   return (
     <>

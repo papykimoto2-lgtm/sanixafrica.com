@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Badge, demanderMotif, Erreur, Pagination, useApi } from '@/components/ui';
-import { api, fmt } from '@/lib/api';
+import { Badge, demanderMotif, Erreur, Pagination, useRpc } from '@/components/ui';
+import { rpc, fmt } from '@/lib/api';
 
 export default function Transactions() {
   const [page, setPage] = useState(1);
   const [statut, setStatut] = useState('');
-  const { data, erreur, recharger } = useApi(`/transactions?page=${page}&taille=25${statut ? `&statut=${statut}` : ''}`);
+  const { data, erreur, recharger } = useRpc('transactions_lister', { p_page: page, p_taille: 25, p_statut: statut });
   const [err, setErr] = useState<string | null>(null);
 
   async function action(id: string, verbe: 'valider' | 'appliquer') {
@@ -16,7 +16,7 @@ export default function Transactions() {
     if (!motif) return;
     setErr(null);
     try {
-      await api(`/transactions/${id}/${verbe}`, { corps: { motif } });
+      await rpc(verbe === 'valider' ? 'transaction_valider' : 'transaction_appliquer', { p_id: id, p_motif: motif });
       recharger();
     } catch (e: any) {
       setErr(e.message);
